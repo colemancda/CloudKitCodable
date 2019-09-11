@@ -42,6 +42,8 @@ public struct CloudKitEncoder {
     }
 }
 
+// MARK: - Supporting Types
+
 internal final class CKRecordEncoder: Swift.Encoder {
     
     // MARK: - Properties
@@ -114,6 +116,8 @@ internal final class CKRecordEncoder: Swift.Encoder {
     }
 }
 
+// MARK: - Boxing Values
+
 internal extension CKRecordEncoder {
     
     func boxEncodable <T: Encodable> (_ value: T) throws -> CKRecordValueProtocol? {
@@ -153,12 +157,12 @@ internal extension CKRecordEncoder {
         }
     }
     
-    func boxRecord(_ record: CKRecord) -> CKRecord.Reference {
+    private func boxRecord(_ record: CKRecord) -> CKRecord.Reference {
         let reference = CKRecord.Reference(record: record, action: .none)
         return reference
     }
     
-    func boxIdentifier(_ identifier: CloudKitIdentifier) -> CKRecord.Reference {
+    private func boxIdentifier(_ identifier: CloudKitIdentifier) -> CKRecord.Reference {
         let reference = CKRecord.Reference(recordID: identifier.cloudRecordID, action: .none)
         return reference
     }
