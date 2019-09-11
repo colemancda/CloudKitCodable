@@ -307,6 +307,8 @@ internal final class CKRecordKeyedEncodingContainer <K : CodingKey> : KeyedEncod
     }
     
     func encode <T: Encodable> (_ value: T, forKey key: K) throws {
+        guard key.stringValue != Swift.type(of: encoder.value).identifierKey?.stringValue
+            else { return } // don't encode identifier
         try setValue(try encoder.boxEncodable(value), forKey: key)
     }
     
