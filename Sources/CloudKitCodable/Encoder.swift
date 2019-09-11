@@ -334,8 +334,16 @@ internal final class CKRecordKeyedEncodingContainer <K : CodingKey> : KeyedEncod
     }
     
     func encode <T: Encodable> (_ value: T, forKey key: K) throws {
-        guard encoder.options.identifierKey(encoder.value, key) == false
-            else { return } // don't encode identifier
+         // don't encode identifier
+        guard encoder.options.identifierKey(encoder.value, key) == false else {
+            self.encoder.codingPath.append(key)
+            defer { self.encoder.codingPath.removeLast() }
+            let recordID = encoder.value.cloudIdentifier.cloudRecordID
+            encoder.log?("Will encode record ID \"\(recordID.recordName)\" for key \"\(key.stringValue)\" at path \"\(encoder.codingPath.path)\"")
+            // do nothing
+            
+            return
+        }
         try setValue(try encoder.boxEncodable(value), forKey: key)
     }
     

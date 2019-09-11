@@ -289,9 +289,6 @@ internal struct CKRecordKeyedDecodingContainer <K: CodingKey> : KeyedDecodingCon
     /// All the keys the Decoder has for this container.
     let allKeys: [Key]
     
-    /// CloudKit Identifier Key
-    let identifierKey: K?
-    
     // MARK: Initialization
     
     /// Initializes `self` by referencing the given decoder and container.
@@ -300,9 +297,7 @@ internal struct CKRecordKeyedDecodingContainer <K: CodingKey> : KeyedDecodingCon
         self.decoder = decoder
         self.container = container
         self.codingPath = decoder.codingPath
-        let allKeys = container.allKeys().compactMap { Key(stringValue: $0) }
-        self.allKeys = allKeys
-        self.identifierKey = allKeys.first(where: { decoder.options.identifierKey($0) })
+        self.allKeys = container.allKeys().compactMap { Key(stringValue: $0) }
     }
     
     // MARK: KeyedDecodingContainerProtocol
@@ -375,13 +370,13 @@ internal struct CKRecordKeyedDecodingContainer <K: CodingKey> : KeyedDecodingCon
     func decode <T: Decodable> (_ type: T.Type, forKey key: Key) throws -> T {
         
         // override identifier key
-        if let identifierKey = self.identifierKey?.stringValue {
-            guard key.stringValue != identifierKey else {
+        if decoder.options.identifierKey(key) {
+            guard key.stringValue != key.stringValue else {
                 decoder.codingPath.append(key)
                 defer { decoder.codingPath.removeLast() }
                 decoder.log?("Will read record ID at path \"\(decoder.codingPath.path)\"")
                 guard let identifierType = type as? CloudKitIdentifier.Type else {
-                    throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Should decode identifier for \(identifierKey)"))
+                    throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Should decode identifier for \(key)"))
                 }
                 guard let identifier = identifierType.init(cloudRecordID: container.recordID) else {
                     throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Could not initialize identifier \(identifierType) from \(container.recordID)"))
