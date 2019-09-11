@@ -66,6 +66,7 @@ final class CloudKitCodableTests: XCTestCase {
         test(Person(id: "001", gender: .male, name: "Coleman"))
         test(Person(id: "0", gender: .male, name: ""))
         test(Numeric(
+             id: .init(),
              boolean: true,
              int: -10,
              uint: 10,
@@ -80,6 +81,7 @@ final class CloudKitCodableTests: XCTestCase {
              uint32: 3000,
              uint64: 30_000))
         test(Profile(
+                id: .init(),
                 person: Person(
                     id: "001",
                     gender: .male,
@@ -97,6 +99,7 @@ final class CloudKitCodableTests: XCTestCase {
         
         test(
             Profile(
+                id: .init(),
                 person: Person(
                     id: "001",
                     gender: .male,
@@ -126,6 +129,7 @@ final class CloudKitCodableTests: XCTestCase {
         
         test(
             PrimitiveArray(
+                id: .init(),
                 strings: ["1", "two", "three", ""],
                 integers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
             )
@@ -133,7 +137,7 @@ final class CloudKitCodableTests: XCTestCase {
         
         test(
             DeviceInformation(
-                identifier: .init(rawValue: UUID(uuidString: "B83DD6F4-A429-41B3-945A-3E0EE5915CA1")!),
+                id: .init(rawValue: UUID(uuidString: "B83DD6F4-A429-41B3-945A-3E0EE5915CA1")!),
                 buildVersion: DeviceInformation.BuildVersion(rawValue: 1),
                 version: Version(major: 1, minor: 2, patch: 3),
                 status: .provisioned,
@@ -252,7 +256,7 @@ public enum Gender: UInt8, Codable {
 
 public struct Profile: Codable, Equatable {
     
-    public let id: ID = .init()
+    public let id: ID
     public let person: Person
     public var friends: [Person]
     public var favorites: [Person.ID]
@@ -279,11 +283,6 @@ extension Profile.ID: ExpressibleByIntegerLiteral {
         self.init(rawValue: value)
     }
 }
-
-//extension Profile.CodingKeys: CloudKitCodingKey {
-//    static var cloudIdentifierKey: CodingKey { return CodingKeys.id }
-//}
-
 extension Profile: CloudKitCodable {
     
     public var cloudIdentifier: CloudKitIdentifier {
@@ -310,7 +309,7 @@ extension Profile.ID: CloudKitIdentifier {
 
 public struct Numeric: Codable, Equatable, Hashable {
     
-    public var id: ID = .init()
+    public var id: ID
     public var boolean: Bool
     public var int: Int
     public var uint: UInt
@@ -361,7 +360,7 @@ extension Numeric.ID: CloudKitIdentifier {
 
 public struct PrimitiveArray: Codable, Equatable {
     
-    public let id: ID = .init()
+    public let id: ID
     public var strings: [String]
     public var integers: [Int]
 }
@@ -400,7 +399,7 @@ extension PrimitiveArray.ID: CloudKitIdentifier {
 
 public struct DeviceInformation: Equatable, Codable {
     
-    public let identifier: Identifier
+    public let id: Identifier
     public let buildVersion: BuildVersion
     public let version: Version
     public var status: Status
@@ -417,11 +416,8 @@ public extension DeviceInformation {
 }
 
 extension DeviceInformation: CloudKitCodable {
-    public static var identifierKey: CodingKey? {
-        return CodingKeys.identifier
-    }
     public var cloudIdentifier: CloudKitIdentifier {
-        return identifier
+        return id
     }
 }
 
@@ -487,6 +483,42 @@ public struct Version: Equatable, Hashable, Codable {
     public var minor: UInt8
     
     public var patch: UInt8
+}
+
+extension Version {
+    public var description: String {
+        return "\(major).\(minor).\(patch)"
+    }
+}
+
+public extension Version {
+    struct Identifier: RawRepresentable, Equatable, Hashable, Codable {
+        public let rawValue: String
+        public init(rawValue: String) {
+            self.rawValue = rawValue
+        }
+    }
+}
+
+extension Version: CloudKitCodable {
+    public var cloudIdentifier: CloudKitIdentifier {
+        return Identifier(rawValue: description)
+    }
+}
+
+extension Version.Identifier: CloudKitIdentifier {
+    
+    public static var cloudRecordType: CKRecord.RecordType {
+        return "Version"
+    }
+    
+    public init?(cloudRecordID: CKRecord.ID) {
+        self.init(rawValue: cloudRecordID.recordName)
+    }
+    
+    public var cloudRecordID: CKRecord.ID {
+        return CKRecord.ID(recordName: rawValue)
+    }
 }
 
 public struct CryptoRequest: Equatable, Codable {
