@@ -5,6 +5,9 @@
 //  Created by Alsey Coleman Miller on 9/10/19.
 //
 
+import Foundation
+import CloudKit
+
 /// CloudKit Codable
 public typealias CloudKitCodable = CloudKitEncodable & CloudKitDecodable
 

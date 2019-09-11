@@ -74,7 +74,7 @@ internal final class CKRecordEncoder <T: CloudKitEncodable> : Swift.Encoder {
         log?("Requested container keyed by \(type.sanitizedName) for path \"\(codingPath.path)\"")
         
         let record = CKRecord(recordType: T.cloudRecordType, recordID: value.cloudRecordID)
-        self.stack.push(record)
+        self.stack.push(.record(record))
         let keyedContainer = CKRecordKeyedEncodingContainer<T, Key>(referencing: self, wrapping: record)
         return KeyedEncodingContainer(keyedContainer)
     }
@@ -83,24 +83,24 @@ internal final class CKRecordEncoder <T: CloudKitEncodable> : Swift.Encoder {
         
         log?("Requested unkeyed container for path \"\(codingPath.path)\"")
         
-        let stackContainer = ItemsContainer()
-        self.stack.push(.items(stackContainer))
-        return CloudKitUnkeyedEncodingContainer(referencing: self, wrapping: stackContainer)
+        let stackContainer = ListContainer()
+        self.stack.push(.list(stackContainer))
+        return CKRecordUnkeyedEncodingContainer(referencing: self, wrapping: stackContainer)
     }
     
     func singleValueContainer() -> SingleValueEncodingContainer {
         
         log?("Requested single value container for path \"\(codingPath.path)\"")
         
-        let stackContainer = ItemContainer()
-        self.stack.push(.item(stackContainer))
-        return CloudKitSingleValueEncodingContainer(referencing: self, wrapping: stackContainer)
+        let stackContainer = ValueContainer()
+        self.stack.push(.value(stackContainer))
+        return CKRecordSingleValueEncodingContainer(referencing: self, wrapping: stackContainer)
     }
 }
 
 internal extension CKRecordEncoder {
     
-    func boxEncodable <T: Encodable> (_ value: T) throws -> CKRecordValueProtocol {
+    func boxEncodable <T: Encodable> (_ value: T) throws -> CKRecordValueProtocol? {
         
         if let recordValue = value as? CKRecordValueProtocol {
             // return CloudKit native attribute value
@@ -108,9 +108,16 @@ internal extension CKRecordEncoder {
         } else {
             // encode using Encodable, should push new container.
             try value.encode(to: self)
-            let record = stack.pop()
-            let reference = CKRecord.Reference(record: record, action: .none)
-            return reference
+            let container = stack.pop()
+            switch container {
+            case let .record(record):
+                let reference = CKRecord.Reference(record: record, action: .none)
+                return reference
+            case let .value(valueContainer):
+                return valueContainer.value
+            case let .list(listContainer):
+                return listContainer.value
+            }
         }
     }
 }
@@ -118,9 +125,7 @@ internal extension CKRecordEncoder {
 // MARK: - Stack
 
 internal extension CKRecordEncoder {
-    
-    typealias Container = CKRecord
-    
+        
     struct Stack {
         
         private(set) var containers = [Container]()
@@ -149,6 +154,24 @@ internal extension CKRecordEncoder {
                 else { fatalError("Empty container stack.") }
             return container
         }
+    }
+}
+
+internal extension CKRecordEncoder {
+    
+    enum Container {
+        case record(CKRecord)
+        case value(ValueContainer)
+        case list(ListContainer)
+    }
+    
+    final class ValueContainer {
+        var value: CKRecordValueProtocol?
+    }
+    
+    final class ListContainer {
+        // should be homegenous array
+        var value = NSMutableArray()
     }
 }
 
@@ -186,55 +209,55 @@ internal final class CKRecordKeyedEncodingContainer <T: CloudKitEncodable, K : C
     }
     
     func encode(_ value: Bool, forKey key: K) throws {
-        setValue(value as NSNumber, forKey: key)
+        setValue(value, forKey: key)
     }
     
     func encode(_ value: Int, forKey key: K) throws {
-        setValue(value as NSNumber, forKey: key)
+        setValue(value, forKey: key)
     }
     
     func encode(_ value: Int8, forKey key: K) throws {
-        setValue(value as NSNumber, forKey: key)
+        setValue(value, forKey: key)
     }
     
     func encode(_ value: Int16, forKey key: K) throws {
-        setValue(value as NSNumber, forKey: key)
+        setValue(value, forKey: key)
     }
     
     func encode(_ value: Int32, forKey key: K) throws {
-        setValue(value as NSNumber, forKey: key)
+        setValue(value, forKey: key)
     }
     
     func encode(_ value: Int64, forKey key: K) throws {
-        setValue(value as NSNumber, forKey: key)
+        setValue(value, forKey: key)
     }
     
     func encode(_ value: UInt, forKey key: K) throws {
-        setValue(value as NSNumber, forKey: key)
+        setValue(value, forKey: key)
     }
     
     func encode(_ value: UInt8, forKey key: K) throws {
-        setValue(value as NSNumber, forKey: key)
+        setValue(value, forKey: key)
     }
     
     func encode(_ value: UInt16, forKey key: K) throws {
-        setValue(value as NSNumber, forKey: key)
+        setValue(value, forKey: key)
     }
     
     func encode(_ value: UInt32, forKey key: K) throws {
-        setValue(value as NSNumber, forKey: key)
+        setValue(value, forKey: key)
     }
     
     func encode(_ value: UInt64, forKey key: K) throws {
-        setValue(value as NSNumber, forKey: key)
+        setValue(value, forKey: key)
     }
     
     func encode(_ value: Float, forKey key: K) throws {
-        setValue(value as NSNumber, forKey: key)
+        setValue(value, forKey: key)
     }
     
     func encode(_ value: Double, forKey key: K) throws {
-        setValue(value as NSNumber, forKey: key)
+        setValue(value, forKey: key)
     }
     
     func encode(_ value: String, forKey key: K) throws {
@@ -268,10 +291,175 @@ internal final class CKRecordKeyedEncodingContainer <T: CloudKitEncodable, K : C
         defer { self.encoder.codingPath.removeLast() }
         encoder.log?("Will encode value for key \(key.stringValue) at path \"\(encoder.codingPath.path)\"")
         let recordValue = try value()
-        if #available(macOS 10.11, *) {
+        if #available(macOS 10.11, iOS 9.0, watchOS 3.0, *) {
             self.container[key.stringValue] = recordValue
         } else {
-            self.container.setObject(recordValue as? __CKRecordObjCValue, forKey: key.stringValue)
+            guard let objcValue = (recordValue as Any?) as? __CKRecordObjCValue? else {
+                fatalError("Cannot convert \(String(reflecting: type(of: recordValue))) to ObjC value")
+            }
+            self.container.setObject(objcValue, forKey: key.stringValue)
         }
     }
+}
+
+// MARK: - SingleValueEncodingContainer
+
+internal final class CKRecordSingleValueEncodingContainer <T: CloudKitEncodable> : SingleValueEncodingContainer {
+    
+    // MARK: - Properties
+    
+    /// A reference to the encoder we're writing to.
+    let encoder: CKRecordEncoder<T>
+    
+    /// The path of coding keys taken to get to this point in encoding.
+    let codingPath: [CodingKey]
+    
+    /// A reference to the container we're writing to.
+    let container: CKRecordEncoder<T>.ValueContainer
+    
+    /// Whether the data has been written
+    private(set) var didWrite = false
+    
+    // MARK: - Initialization
+    
+    init(referencing encoder: CKRecordEncoder<T>,
+         wrapping container: CKRecordEncoder<T>.ValueContainer) {
+        
+        self.encoder = encoder
+        self.codingPath = encoder.codingPath
+        self.container = container
+    }
+    
+    // MARK: - Methods
+    
+    func encodeNil() throws { write(nil) }
+    
+    func encode(_ value: Bool) throws { write(value) }
+    
+    func encode(_ value: String) throws { write(value) }
+    
+    func encode(_ value: Double) throws { write(value) }
+    
+    func encode(_ value: Float) throws { write(value) }
+    
+    func encode(_ value: Int) throws { write(value) }
+    
+    func encode(_ value: Int8) throws { write(value) }
+    
+    func encode(_ value: Int16) throws { write(value) }
+    
+    func encode(_ value: Int32) throws { write(value) }
+    
+    func encode(_ value: Int64) throws { write(value) }
+    
+    func encode(_ value: UInt) throws { write(value) }
+    
+    func encode(_ value: UInt8) throws { write(value) }
+    
+    func encode(_ value: UInt16) throws { write(value) }
+    
+    func encode(_ value: UInt32) throws { write(value) }
+    
+    func encode(_ value: UInt64) throws { write(value) }
+    
+    func encode <T: Encodable> (_ value: T) throws { write(try encoder.boxEncodable(value)) }
+    
+    // MARK: - Private Methods
+    
+    private func write(_ value: CKRecordValueProtocol?) {
+        precondition(didWrite == false, "Data already written")
+        self.container.value = value
+        self.didWrite = true
+    }
+}
+
+// MARK: - UnkeyedEncodingContainer
+
+internal final class CKRecordUnkeyedEncodingContainer <T: CloudKitEncodable> : UnkeyedEncodingContainer {
+    
+    // MARK: - Properties
+    
+    /// A reference to the encoder we're writing to.
+    let encoder: CKRecordEncoder<T>
+    
+    /// The path of coding keys taken to get to this point in encoding.
+    let codingPath: [CodingKey]
+    
+    /// A reference to the container we're writing to.
+    let container: CKRecordEncoder<T>.ListContainer
+    
+    // MARK: - Initialization
+    
+    init(referencing encoder: CKRecordEncoder<T>,
+         wrapping container: CKRecordEncoder<T>.ListContainer) {
+        
+        self.encoder = encoder
+        self.codingPath = encoder.codingPath
+        self.container = container
+    }
+    
+    // MARK: - Methods
+    
+    /// The number of elements encoded into the container.
+    var count: Int {
+        return container.value.count
+    }
+    
+    func encodeNil() throws { append(nil) }
+    
+    func encode(_ value: Bool) throws { append(value) }
+    
+    func encode(_ value: String) throws { append(value) }
+    
+    func encode(_ value: Double) throws { append(value) }
+    
+    func encode(_ value: Float) throws { append(value) }
+    
+    func encode(_ value: Int) throws { append(value) }
+    
+    func encode(_ value: Int8) throws { append(value) }
+    
+    func encode(_ value: Int16) throws { append(value) }
+    
+    func encode(_ value: Int32) throws { append(value) }
+    
+    func encode(_ value: Int64) throws { append(value) }
+    
+    func encode(_ value: UInt) throws { append(value) }
+    
+    func encode(_ value: UInt8) throws { append(value) }
+    
+    func encode(_ value: UInt16) throws { append(value) }
+    
+    func encode(_ value: UInt32) throws { append(value) }
+    
+    func encode(_ value: UInt64) throws { append(value) }
+    
+    func encode <T: Encodable> (_ value: T) throws { append(try encoder.boxEncodable(value)) }
+    
+    func nestedContainer<NestedKey>(keyedBy keyType: NestedKey.Type) -> KeyedEncodingContainer<NestedKey> where NestedKey : CodingKey {
+        fatalError()
+    }
+    
+    func nestedUnkeyedContainer() -> UnkeyedEncodingContainer {
+        fatalError()
+    }
+    
+    func superEncoder() -> Encoder {
+        fatalError()
+    }
+    
+    // MARK: - Private Methods
+    
+    private func append(_ value: CKRecordValueProtocol?) {
+        if let value = value {
+            self.container.value.add(value)
+        }
+    }
+}
+
+public protocol CloudKitEncodingContext {
+    
+    func insert(_ record: CKRecord)
+    func save() throws
 }
