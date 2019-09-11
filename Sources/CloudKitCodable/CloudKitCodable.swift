@@ -30,3 +30,9 @@ public protocol CloudKitDecodable: Swift.Decodable {
     /// Cloud Record ID
     var cloudRecordID: CKRecord.ID { get }
 }
+
+public protocol CloudKitIdentifier {
+    
+    /// Cloud Record ID
+    var cloudRecordID: CKRecord.ID { get }
+}

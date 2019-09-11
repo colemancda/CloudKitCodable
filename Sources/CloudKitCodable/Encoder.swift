@@ -25,17 +25,24 @@ public struct CloudKitEncoder {
     
     // MARK: - Methods
     
-    public func encode <T: CloudKitEncodable> (_ value: T) throws {
+    public func encode <T: CloudKitEncodable> (_ value: T) throws -> CKModifyRecordsOperation {
         
         log?("Will encode \(String(reflecting: T.self))")
         
         //let options = Encoder.Options()
-        let encoder = CKRecordEncoder(value, userInfo: userInfo, log: log)
+        let operation = CKModifyRecordsOperation()
+        let encoder = CKRecordEncoder(
+            value,
+            operation: operation,
+            userInfo: userInfo,
+            log: log
+        )
         try value.encode(to: encoder)
+        return operation
     }
 }
 
-internal final class CKRecordEncoder <T: CloudKitEncodable> : Swift.Encoder {
+internal final class CKRecordEncoder: Swift.Encoder {
     
     // MARK: - Properties
     
@@ -49,19 +56,24 @@ internal final class CKRecordEncoder <T: CloudKitEncodable> : Swift.Encoder {
     let log: ((String) -> ())?
     
     /// Encodable value
-    let value: T
+    let value: CloudKitEncodable
+    
+    /// CloudKit modify records operation.
+    let operation: CKModifyRecordsOperation
     
     /// Container stack
     private(set) var stack = Stack()
     
     // MARK: - Initialization
     
-    init(_ value: T,
+    init(_ value: CloudKitEncodable,
+         operation: CKModifyRecordsOperation,
          codingPath: [CodingKey] = [],
          userInfo: [CodingUserInfoKey : Any],
          log: ((String) -> ())?) {
         
         self.value = value
+        self.operation = operation
         self.codingPath = codingPath
         self.userInfo = userInfo
         self.log = log
@@ -73,9 +85,10 @@ internal final class CKRecordEncoder <T: CloudKitEncodable> : Swift.Encoder {
         
         log?("Requested container keyed by \(type.sanitizedName) for path \"\(codingPath.path)\"")
         
-        let record = CKRecord(recordType: T.cloudRecordType, recordID: value.cloudRecordID)
+        let record = CKRecord(recordType: Swift.type(of: value).cloudRecordType, recordID: value.cloudRecordID)
+        operation.save(record)
         self.stack.push(.record(record))
-        let keyedContainer = CKRecordKeyedEncodingContainer<T, Key>(referencing: self, wrapping: record)
+        let keyedContainer = CKRecordKeyedEncodingContainer<Key>(referencing: self, wrapping: record)
         return KeyedEncodingContainer(keyedContainer)
     }
     
@@ -102,7 +115,21 @@ internal extension CKRecordEncoder {
     
     func boxEncodable <T: Encodable> (_ value: T) throws -> CKRecordValueProtocol? {
         
-        if let recordValue = value as? CKRecordValueProtocol {
+        if let encodable = value as? CloudKitEncodable {
+            // store nested record
+            let encoder = CKRecordEncoder(
+                encodable,
+                operation: operation,
+                codingPath: codingPath,
+                userInfo: userInfo,
+                log: log
+            )
+            try encodable.encode(to: encoder)
+            guard case let .record(record) = encoder.stack.root else {
+                throw EncodingError.invalidValue(value, EncodingError.Context(codingPath: codingPath, debugDescription: "\(String(reflecting: Swift.type(of: encodable))) should encode to record"))
+            }
+            return boxRecord(record)
+        } else if let recordValue = value as? CKRecordValueProtocol {
             // return CloudKit native attribute value
             return recordValue
         } else {
@@ -111,14 +138,18 @@ internal extension CKRecordEncoder {
             let container = stack.pop()
             switch container {
             case let .record(record):
-                let reference = CKRecord.Reference(record: record, action: .none)
-                return reference
+                return boxRecord(record)
             case let .value(valueContainer):
                 return valueContainer.value
             case let .list(listContainer):
                 return listContainer.value
             }
         }
+    }
+    
+    func boxRecord(_ record: CKRecord) -> CKRecord.Reference {
+        let reference = CKRecord.Reference(record: record, action: .none)
+        return reference
     }
 }
 
@@ -177,14 +208,14 @@ internal extension CKRecordEncoder {
 
 // MARK: - KeyedEncodingContainerProtocol
 
-internal final class CKRecordKeyedEncodingContainer <T: CloudKitEncodable, K : CodingKey> : KeyedEncodingContainerProtocol {
+internal final class CKRecordKeyedEncodingContainer <K : CodingKey> : KeyedEncodingContainerProtocol {
     
     typealias Key = K
     
     // MARK: - Properties
     
     /// A reference to the encoder we're writing to.
-    let encoder: CKRecordEncoder<T>
+    let encoder: CKRecordEncoder
     
     /// The path of coding keys taken to get to this point in encoding.
     let codingPath: [CodingKey]
@@ -194,7 +225,7 @@ internal final class CKRecordKeyedEncodingContainer <T: CloudKitEncodable, K : C
     
     // MARK: - Initialization
     
-    init(referencing encoder: CKRecordEncoder<T>,
+    init(referencing encoder: CKRecordEncoder,
          wrapping container: CKRecord) {
         
         self.encoder = encoder
@@ -304,26 +335,26 @@ internal final class CKRecordKeyedEncodingContainer <T: CloudKitEncodable, K : C
 
 // MARK: - SingleValueEncodingContainer
 
-internal final class CKRecordSingleValueEncodingContainer <T: CloudKitEncodable> : SingleValueEncodingContainer {
+internal final class CKRecordSingleValueEncodingContainer: SingleValueEncodingContainer {
     
     // MARK: - Properties
     
     /// A reference to the encoder we're writing to.
-    let encoder: CKRecordEncoder<T>
+    let encoder: CKRecordEncoder
     
     /// The path of coding keys taken to get to this point in encoding.
     let codingPath: [CodingKey]
     
     /// A reference to the container we're writing to.
-    let container: CKRecordEncoder<T>.ValueContainer
+    let container: CKRecordEncoder.ValueContainer
     
     /// Whether the data has been written
     private(set) var didWrite = false
     
     // MARK: - Initialization
     
-    init(referencing encoder: CKRecordEncoder<T>,
-         wrapping container: CKRecordEncoder<T>.ValueContainer) {
+    init(referencing encoder: CKRecordEncoder,
+         wrapping container: CKRecordEncoder.ValueContainer) {
         
         self.encoder = encoder
         self.codingPath = encoder.codingPath
@@ -375,23 +406,23 @@ internal final class CKRecordSingleValueEncodingContainer <T: CloudKitEncodable>
 
 // MARK: - UnkeyedEncodingContainer
 
-internal final class CKRecordUnkeyedEncodingContainer <T: CloudKitEncodable> : UnkeyedEncodingContainer {
+internal final class CKRecordUnkeyedEncodingContainer: UnkeyedEncodingContainer {
     
     // MARK: - Properties
     
     /// A reference to the encoder we're writing to.
-    let encoder: CKRecordEncoder<T>
+    let encoder: CKRecordEncoder
     
     /// The path of coding keys taken to get to this point in encoding.
     let codingPath: [CodingKey]
     
     /// A reference to the container we're writing to.
-    let container: CKRecordEncoder<T>.ListContainer
+    let container: CKRecordEncoder.ListContainer
     
     // MARK: - Initialization
     
-    init(referencing encoder: CKRecordEncoder<T>,
-         wrapping container: CKRecordEncoder<T>.ListContainer) {
+    init(referencing encoder: CKRecordEncoder,
+         wrapping container: CKRecordEncoder.ListContainer) {
         
         self.encoder = encoder
         self.codingPath = encoder.codingPath
@@ -458,8 +489,13 @@ internal final class CKRecordUnkeyedEncodingContainer <T: CloudKitEncodable> : U
     }
 }
 
-public protocol CloudKitEncodingContext {
+// MARK: - Extensions
+
+internal extension CKModifyRecordsOperation {
     
-    func insert(_ record: CKRecord)
-    func save() throws
+    func save(_ record: CKRecord) {
+        var recordsToSave = self.recordsToSave ?? []
+        recordsToSave.append(record)
+        self.recordsToSave = recordsToSave
+    }
 }
