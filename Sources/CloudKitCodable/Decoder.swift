@@ -175,7 +175,10 @@ internal extension CKRecordDecoder {
             guard let reference = value as? CKRecord.Reference else {
                 throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Expected reference for \(String(reflecting: type))"))
             }
-            return identifierType.init(cloudRecordID: reference.recordID) as! T
+            guard let identifier = identifierType.init(cloudRecordID: reference.recordID) else {
+                throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Could not initialize identifier \(identifierType) from \(reference)"))
+            }
+            return identifier as! T
         } else if let decodableType = type as? CloudKitDecodable.Type {
             // unbox reference as nested value
             guard let reference = value as? CKRecord.Reference else {

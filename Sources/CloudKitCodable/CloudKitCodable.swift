@@ -35,5 +35,5 @@ public protocol CloudKitIdentifier {
     /// Cloud Record ID
     var cloudRecordID: CKRecord.ID { get }
     
-    init(cloudRecordID: CKRecord.ID)
+    init?(cloudRecordID: CKRecord.ID)
 }
