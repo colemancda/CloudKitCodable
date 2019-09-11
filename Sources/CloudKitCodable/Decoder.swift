@@ -137,10 +137,26 @@ internal extension CKRecordDecoder {
         
         if let identifierType = type as? CloudKitIdentifier.Type {
             // unbox reference as identifier
-            return try unboxIdentifier(value, as: identifierType) as! T
+            guard let reference = value as? CKRecord.Reference else {
+                throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Expected reference for \(String(reflecting: type))"))
+            }
+            return identifierType.init(cloudRecordID: reference.recordID) as! T
         } else if let decodableType = type as? CloudKitDecodable.Type {
             // unbox reference as nested value
-            return try unboxRecord(value, as: decodableType) as! T
+            guard let reference = value as? CKRecord.Reference else {
+                throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Expected reference for \(String(reflecting: decodableType))"))
+            }
+            // get record for reference
+            let record = context.fetch(record: reference.recordID)
+            // decode nested type
+            let decoder = CKRecordDecoder(
+                referencing: record,
+                at: codingPath,
+                userInfo: userInfo,
+                log: log,
+                context: context
+            )
+            return try T.init(from: decoder)
         } else {
             // push container to stack and decode using Decodable implementation
             stack.push(.value(value))
@@ -148,33 +164,6 @@ internal extension CKRecordDecoder {
             stack.pop()
             return decoded
         }
-    }
-    
-    private func unboxRecord <T: CloudKitDecodable> (_ value: CKRecordValueProtocol, as type: T.Type) throws -> T {
-        
-        // get reference value
-        guard let reference = value as? CKRecord.Reference else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Expected reference for \(String(reflecting: type))"))
-        }
-        // get record for reference
-        let record = context.fetch(record: reference.recordID)
-        // decode nested type
-        let decoder = CKRecordDecoder(
-            referencing: record,
-            at: codingPath,
-            userInfo: userInfo,
-            log: log,
-            context: context
-        )
-        return try T.init(from: decoder)
-    }
-    
-    private func unboxIdentifier <T: CloudKitIdentifier> (_ value: CKRecordValueProtocol, as type: T.Type) throws -> T {
-        
-        guard let reference = value as? CKRecord.Reference else {
-            throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Expected reference for \(String(reflecting: type))"))
-        }
-        return type.init(cloudRecordID: reference.recordID)
     }
 }
 
