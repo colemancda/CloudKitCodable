@@ -144,7 +144,11 @@ internal extension CKRecordEncoder {
     
     func boxEncodable <T: Encodable> (_ value: T) throws -> CKRecordValueProtocol? {
         
-        if let identifier = value as? CloudKitIdentifier {
+        if let url = value as? URL {
+            return url.absoluteString
+        } else if let uuid = value as? UUID {
+            return uuid.uuidString
+        } else if let identifier = value as? CloudKitIdentifier {
             // store nested reference
             return boxIdentifier(identifier)
         } else if let encodable = value as? CloudKitEncodable {

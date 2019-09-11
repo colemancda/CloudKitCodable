@@ -205,7 +205,23 @@ internal extension CKRecordDecoder {
     /// Attempt to decode native value to expected type.
     func unboxDecodable <T: Decodable> (_ value: CKRecordValueProtocol, as type: T.Type) throws -> T {
         
-        if let identifierType = type as? CloudKitIdentifier.Type {
+        if type is URL.Type {
+            guard let urlString = value as? String else {
+                throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Expected URL string, got \(Swift.type(of: value)) instead"))
+            }
+            guard let url = URL(string: urlString) else {
+                throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Invalid URL string \(urlString)"))
+            }
+            return url as! T // should be same type
+        } else if type is UUID.Type {
+            guard let uuidString = value as? String else {
+                throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Expected UUID string, got \(Swift.type(of: value)) instead"))
+            }
+            guard let uuid = UUID(uuidString: uuidString) else {
+                throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Invalid UUID string \(uuidString)"))
+            }
+            return uuid as! T
+        } else if let identifierType = type as? CloudKitIdentifier.Type {
             // unbox reference as identifier
             guard let reference = value as? CKRecord.Reference else {
                 throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Expected reference for \(String(reflecting: type))"))

@@ -1,5 +1,6 @@
 import Foundation
 import CloudKit
+import CoreLocation
 import XCTest
 @testable import CloudKitCodable
 
@@ -65,7 +66,7 @@ final class CloudKitCodableTests: XCTestCase {
         
         test(Person(id: "001", gender: .male, name: "Coleman"))
         test(Person(id: "0", gender: .male, name: ""))
-        test(Numeric(
+        test(AttributesTest(
              id: .init(),
              boolean: true,
              int: -10,
@@ -79,7 +80,14 @@ final class CloudKitCodableTests: XCTestCase {
              uint8: .max,
              uint16: 300,
              uint32: 3000,
-             uint64: 30_000))
+             uint64: 30_000,
+             string: "test string",
+             date: Date(),
+             data: Data([0x01]),
+             url: URL(string: "https://apple.com")!,
+             uuid: UUID()
+            )
+        )
         test(Profile(
                 id: .init(),
                 person: Person(
@@ -173,6 +181,80 @@ final class CloudKitCodableTests: XCTestCase {
                 ]
             )
         )*/
+        
+        test(
+            ReferencesTest(
+                id: .init(),
+                reference: .init(),
+                references: [.init()],
+                nestedValue: Person(
+                    id: "001",
+                    gender: .male,
+                    name: "Coleman"
+                ),
+                nestedList: [
+                    Person(
+                        id: "002",
+                        gender: .female,
+                        name: "Gina"
+                    ),
+                    Person(
+                        id: "003",
+                        gender: .male,
+                        name: "Jorge"
+                    )
+                ],
+                nestedNonCloud: nil,
+                nestedNonCloudList: []
+            )
+        )
+    }
+    
+    func testInvalid() {
+        
+        do {
+            let value = ReferencesTest(
+                id: .init(),
+                reference: nil,
+                references: [],
+                nestedValue: Person(
+                    id: "001",
+                    gender: .male,
+                    name: "Coleman"
+                ),
+                nestedList: [
+                    Person(
+                        id: "002",
+                        gender: .female,
+                        name: "Gina"
+                    ),
+                    Person(
+                        id: "003",
+                        gender: .male,
+                        name: "Jorge"
+                    )
+                ],
+                nestedNonCloud: .init(
+                    name: "Non Cloud Nested",
+                    value: Data([0x01, 0x02]),
+                    url: URL(string: "http://google.com")!
+                ),
+                nestedNonCloudList: [
+                    .init(
+                        name: "Non Cloud Nested 1",
+                        value: Data([0x01, 0x02, 0x02]),
+                        url: URL(string: "http://google.com/index.html")!
+                    ),
+                ]
+            )
+            
+            var encoder = CloudKitEncoder()
+            encoder.log = { print("Encoder:", $0) }
+            let _ = try encoder.encode(value)
+            XCTFail("Should throw error")
+        } catch {
+            dump(error)
+        }
     }
 }
 
@@ -191,7 +273,6 @@ internal struct CloudKitTestDecoderContext: CloudKitDecoderContext {
 }
 
 extension CloudKitTestDecoderContext: ExpressibleByArrayLiteral {
-    
     init(arrayLiteral elements: CKRecord...) {
         self.init(records: elements)
     }
@@ -306,7 +387,7 @@ extension Profile.ID: CloudKitIdentifier {
     }
 }
 
-public struct Numeric: Codable, Equatable, Hashable {
+public struct AttributesTest: Codable, Equatable, Hashable {
     
     public var id: ID
     public var boolean: Bool
@@ -322,9 +403,15 @@ public struct Numeric: Codable, Equatable, Hashable {
     public var uint16: UInt16
     public var uint32: UInt32
     public var uint64: UInt64
+    public var string: String
+    public var date: Date
+    public var data: Data
+    public var url: URL
+    public var uuid: UUID
+    //public var location: CLLocation
 }
 
-public extension Numeric {
+public extension AttributesTest {
     struct ID: RawRepresentable, Equatable, Hashable, Codable {
         public let rawValue: UUID
         public init(rawValue: UUID = UUID()) {
@@ -333,25 +420,21 @@ public extension Numeric {
     }
 }
 
-extension Numeric: CloudKitCodable {
-    
+extension AttributesTest: CloudKitCodable {
     public var cloudIdentifier: CloudKitIdentifier {
         return id
     }
 }
 
-extension Numeric.ID: CloudKitIdentifier {
-    
+extension AttributesTest.ID: CloudKitIdentifier {
     public static var cloudRecordType: CKRecord.RecordType {
-        return "Numeric"
+        return "AttributesTest"
     }
-    
     public init?(cloudRecordID: CKRecord.ID) {
         guard let rawValue = UUID(uuidString: cloudRecordID.recordName)
             else { return nil }
         self.init(rawValue: rawValue)
     }
-    
     public var cloudRecordID: CKRecord.ID {
         return CKRecord.ID(recordName: rawValue.uuidString)
     }
