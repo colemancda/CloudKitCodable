@@ -85,7 +85,10 @@ internal final class CKRecordEncoder: Swift.Encoder {
         
         log?("Requested container keyed by \(type.sanitizedName) for path \"\(codingPath.path)\"")
         
-        let record = CKRecord(recordType: Swift.type(of: value).cloudRecordType, recordID: value.cloudRecordID)
+        let record = CKRecord(
+            recordType: Swift.type(of: value.cloudIdentifier).cloudRecordType,
+            recordID: value.cloudIdentifier.cloudRecordID
+        )
         operation.save(record)
         self.stack.push(.record(record))
         let keyedContainer = CKRecordKeyedEncodingContainer<Key>(referencing: self, wrapping: record)
@@ -115,7 +118,10 @@ internal extension CKRecordEncoder {
     
     func boxEncodable <T: Encodable> (_ value: T) throws -> CKRecordValueProtocol? {
         
-        if let encodable = value as? CloudKitEncodable {
+        if let identifier = value as? CloudKitIdentifier {
+            // store nested reference
+            return boxIdentifier(identifier)
+        } else if let encodable = value as? CloudKitEncodable {
             // store nested record
             let encoder = CKRecordEncoder(
                 encodable,
@@ -149,6 +155,11 @@ internal extension CKRecordEncoder {
     
     func boxRecord(_ record: CKRecord) -> CKRecord.Reference {
         let reference = CKRecord.Reference(record: record, action: .none)
+        return reference
+    }
+    
+    func boxIdentifier(_ identifier: CloudKitIdentifier) -> CKRecord.Reference {
+        let reference = CKRecord.Reference(recordID: identifier.cloudRecordID, action: .none)
         return reference
     }
 }

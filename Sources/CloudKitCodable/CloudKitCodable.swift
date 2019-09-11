@@ -14,24 +14,23 @@ public typealias CloudKitCodable = CloudKitEncodable & CloudKitDecodable
 /// CloudKit Encodable
 public protocol CloudKitEncodable: Swift.Encodable {
     
-    /// Cloud Record Type
-    static var cloudRecordType: CKRecord.RecordType { get }
+    static var identifierKey: CodingKey? { get }
     
-    /// Cloud Record ID
-    var cloudRecordID: CKRecord.ID { get }
+    var cloudIdentifier: CloudKitIdentifier { get }
 }
 
 /// CloudKit Decodable
 public protocol CloudKitDecodable: Swift.Decodable {
     
-    /// Cloud Record Type
-    static var cloudRecordType: CKRecord.RecordType { get }
+    static var identifierKey: CodingKey? { get }
     
-    /// Cloud Record ID
-    var cloudRecordID: CKRecord.ID { get }
+    var cloudIdentifier: CloudKitIdentifier { get }
 }
 
 public protocol CloudKitIdentifier {
+    
+    /// Cloud Record Type
+    static var cloudRecordType: CKRecord.RecordType { get }
     
     /// Cloud Record ID
     var cloudRecordID: CKRecord.ID { get }
