@@ -35,7 +35,7 @@ public struct CloudKitDecoder {
         log?("Will decode \(String(reflecting: T.self))")
         
         let decoder = CKRecordDecoder(
-            referencing: record,
+            referencing: .record(record),
             userInfo: userInfo,
             log: log,
             context: context
@@ -73,13 +73,13 @@ internal final class CKRecordDecoder: Swift.Decoder {
     
     // MARK: - Initialization
     
-    fileprivate init(referencing container: CKRecord,
+    fileprivate init(referencing container: Container,
                      at codingPath: [CodingKey] = [],
                      userInfo: [CodingUserInfoKey : Any],
                      log: ((String) -> ())?,
                      context: CloudKitDecoderContext) {
         
-        self.stack = Stack(.record(container))
+        self.stack = Stack(container)
         self.codingPath = codingPath
         self.userInfo = userInfo
         self.log = log
@@ -155,7 +155,7 @@ internal extension CKRecordDecoder {
             let record = context.fetch(record: reference.recordID)
             // decode nested type
             let decoder = CKRecordDecoder(
-                referencing: record,
+                referencing: .record(record),
                 at: codingPath,
                 userInfo: userInfo,
                 log: log,
@@ -557,14 +557,14 @@ internal struct CKRecordUnkeyedDecodingContainer: UnkeyedDecodingContainer {
         // check for end of array
         try assertNotEnd()
         
-        // get item
-        let recordValue = container[currentIndex]
+        // get value
+        let value = container[currentIndex]
         
         // increment counter
         self.currentIndex += 1
         
         // create new decoder
-        let decoder = CKRecordDecoder(referencing: .item(item),
+        let decoder = CKRecordDecoder(referencing: .value(value),
                                       at: self.decoder.codingPath,
                                       userInfo: self.decoder.userInfo,
                                       log: self.decoder.log,
