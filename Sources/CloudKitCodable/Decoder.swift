@@ -22,6 +22,9 @@ public struct CloudKitDecoder {
     /// Logger handler
     public var log: ((String) -> ())?
     
+    /// CloudKit Decoding Options
+    public var options = Options()
+    
     // MARK: - Initialization
     
     public init(context: CloudKitDecoderContext) {
@@ -38,7 +41,8 @@ public struct CloudKitDecoder {
             referencing: .record(record),
             userInfo: userInfo,
             log: log,
-            context: context
+            context: context,
+            options: options
         )
         
         return try T.init(from: decoder)
@@ -46,6 +50,21 @@ public struct CloudKitDecoder {
 }
 
 // MARK: - Supporting Types
+
+public extension CloudKitDecoder {
+    
+    /// CloudKit Decoder Options
+    struct Options {
+        
+        /// Which coding key to use as the CloudKit record name.
+        public var identifierKey: IdentifierKeyStrategy = { (key) in key.stringValue == "id" }
+    }
+}
+
+public extension CloudKitDecoder.Options {
+    
+    typealias IdentifierKeyStrategy = (CodingKey) -> (Bool)
+}
 
 /// CloudKit Decoder context.
 public protocol CloudKitDecoderContext {
@@ -99,6 +118,8 @@ internal final class CKRecordDecoder: Swift.Decoder {
     /// Logger
     let log: ((String) -> ())?
     
+    let options: CloudKitDecoder.Options
+    
     private(set) var stack: Stack
     
     // MARK: - Initialization
@@ -107,13 +128,15 @@ internal final class CKRecordDecoder: Swift.Decoder {
                      at codingPath: [CodingKey] = [],
                      userInfo: [CodingUserInfoKey : Any],
                      log: ((String) -> ())?,
-                     context: CloudKitDecoderContext) {
+                     context: CloudKitDecoderContext,
+                     options: CloudKitDecoder.Options) {
         
         self.stack = Stack(container)
         self.codingPath = codingPath
         self.userInfo = userInfo
         self.log = log
         self.context = context
+        self.options = options
     }
     
     // MARK: - Methods
@@ -196,7 +219,8 @@ internal extension CKRecordDecoder {
                 at: codingPath,
                 userInfo: userInfo,
                 log: log,
-                context: context
+                context: context,
+                options: options
             )
             return try T.init(from: decoder)
         } else {
@@ -266,7 +290,7 @@ internal struct CKRecordKeyedDecodingContainer <K: CodingKey> : KeyedDecodingCon
     let allKeys: [Key]
     
     /// CloudKit Identifier Key
-    let identifierKey: CodingKey? = (Key.self as? CloudKitCodingKey.Type)?.cloudIdentifierKey
+    let identifierKey: K?
     
     // MARK: Initialization
     
@@ -276,7 +300,9 @@ internal struct CKRecordKeyedDecodingContainer <K: CodingKey> : KeyedDecodingCon
         self.decoder = decoder
         self.container = container
         self.codingPath = decoder.codingPath
-        self.allKeys = container.allKeys().compactMap { Key(stringValue: $0) }
+        let allKeys = container.allKeys().compactMap { Key(stringValue: $0) }
+        self.allKeys = allKeys
+        self.identifierKey = allKeys.first(where: { decoder.options.identifierKey($0) })
     }
     
     // MARK: KeyedDecodingContainerProtocol
@@ -625,7 +651,8 @@ internal struct CKRecordUnkeyedDecodingContainer: UnkeyedDecodingContainer {
                                       at: self.decoder.codingPath,
                                       userInfo: self.decoder.userInfo,
                                       log: self.decoder.log,
-                                      context: self.decoder.context)
+                                      context: self.decoder.context,
+                                      options: self.decoder.options)
         
         return decoder
     }

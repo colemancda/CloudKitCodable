@@ -223,9 +223,7 @@ extension Person.ID: CustomStringConvertible {
 }
 
 extension Person: CloudKitCodable {
-    public static var identifierKey: CodingKey? {
-        return CodingKeys.id
-    }
+    
     public var cloudIdentifier: CloudKitIdentifier {
         return id
     }
@@ -287,9 +285,7 @@ extension Profile.ID: ExpressibleByIntegerLiteral {
 //}
 
 extension Profile: CloudKitCodable {
-    public static var identifierKey: CodingKey? {
-        return CodingKeys.id
-    }
+    
     public var cloudIdentifier: CloudKitIdentifier {
         return id
     }
@@ -340,9 +336,7 @@ public extension Numeric {
 }
 
 extension Numeric: CloudKitCodable {
-    public static var identifierKey: CodingKey? {
-        return CodingKeys.id
-    }
+    
     public var cloudIdentifier: CloudKitIdentifier {
         return id
     }
@@ -382,9 +376,6 @@ public extension PrimitiveArray {
 }
 
 extension PrimitiveArray: CloudKitCodable {
-    public static var identifierKey: CodingKey? {
-        return CodingKeys.id
-    }
     public var cloudIdentifier: CloudKitIdentifier {
         return id
     }

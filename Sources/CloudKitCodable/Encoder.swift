@@ -19,6 +19,8 @@ public struct CloudKitEncoder {
     /// Logger handler
     public var log: ((String) -> ())?
     
+    public var options = Options()
+    
     // MARK: - Initialization
     
     public init() { }
@@ -35,11 +37,27 @@ public struct CloudKitEncoder {
             value,
             operation: operation,
             userInfo: userInfo,
-            log: log
+            log: log,
+            options: options
         )
         try value.encode(to: encoder)
         return operation
     }
+}
+
+public extension CloudKitEncoder {
+    
+    /// CloudKit Encoder Options
+    struct Options {
+        
+        /// Which coding key to use as the CloudKit record name.
+        public var identifierKey: IdentifierKeyStrategy = { (_, key) in key.stringValue == "id" }
+    }
+}
+
+public extension CloudKitEncoder.Options {
+    
+    typealias IdentifierKeyStrategy = (CloudKitEncodable, CodingKey) -> (Bool)
 }
 
 // MARK: - Supporting Types
@@ -57,6 +75,8 @@ internal final class CKRecordEncoder: Swift.Encoder {
     /// Logger
     let log: ((String) -> ())?
     
+    let options: CloudKitEncoder.Options
+    
     /// Encodable value
     let value: CloudKitEncodable
     
@@ -72,13 +92,15 @@ internal final class CKRecordEncoder: Swift.Encoder {
          operation: CKModifyRecordsOperation,
          codingPath: [CodingKey] = [],
          userInfo: [CodingUserInfoKey : Any],
-         log: ((String) -> ())?) {
+         log: ((String) -> ())?,
+         options: CloudKitEncoder.Options) {
         
         self.value = value
         self.operation = operation
         self.codingPath = codingPath
         self.userInfo = userInfo
         self.log = log
+        self.options = options
     }
     
     // MARK: - Encoder
@@ -132,7 +154,8 @@ internal extension CKRecordEncoder {
                 operation: operation,
                 codingPath: codingPath,
                 userInfo: userInfo,
-                log: log
+                log: log,
+                options: options
             )
             try encodable.encode(to: encoder)
             guard case let .record(record) = encoder.stack.root else {
@@ -238,9 +261,6 @@ internal final class CKRecordKeyedEncodingContainer <K : CodingKey> : KeyedEncod
     /// A reference to the container we're writing to.
     let container: CKRecord
     
-    /// CloudKit Identifier Key
-    let identifierKey: CodingKey? = (Key.self as? CloudKitCodingKey.Type)?.cloudIdentifierKey
-    
     // MARK: - Initialization
     
     init(referencing encoder: CKRecordEncoder,
@@ -314,7 +334,7 @@ internal final class CKRecordKeyedEncodingContainer <K : CodingKey> : KeyedEncod
     }
     
     func encode <T: Encodable> (_ value: T, forKey key: K) throws {
-        guard key.stringValue != identifierKey?.stringValue
+        guard encoder.options.identifierKey(encoder.value, key) == false
             else { return } // don't encode identifier
         try setValue(try encoder.boxEncodable(value), forKey: key)
     }
