@@ -144,13 +144,13 @@ final class CloudKitCodableTests: XCTestCase {
                 features: .all
             )
         )
-        /*
+        
         test(
             CryptoRequest(secret: CryptoData())
         )
-        
+        /*
         test(
-            CustomEncodableArray(elements: [
+            CustomEncodableArray(id: .init(), elements: [
                 .value(
                     CustomEncodableArray.Value(
                         identifier: UUID(uuidString: "B83DD6F4-A429-41B3-945A-3E0EE5915CA1")!,
@@ -172,8 +172,7 @@ final class CloudKitCodableTests: XCTestCase {
                 )
                 ]
             )
-        )
-        */
+        )*/
     }
 }
 
@@ -523,11 +522,46 @@ extension Version.Identifier: CloudKitIdentifier {
 
 public struct CryptoRequest: Equatable, Codable {
     
+    public let identifier: Identifier
+    
     ///  Private key data.
     public let secret: CryptoData
     
-    public init(secret: CryptoData) {
+    public init(identifier: Identifier = .init(), secret: CryptoData) {
+        self.identifier = identifier
         self.secret = secret
+    }
+}
+
+public extension CryptoRequest {
+    struct Identifier: RawRepresentable, Equatable, Hashable, Codable {
+        public let rawValue: UUID
+        public init(rawValue: UUID = UUID()) {
+            self.rawValue = rawValue
+        }
+    }
+}
+
+extension CryptoRequest: CloudKitCodable {
+    public var cloudIdentifier: CloudKitIdentifier {
+        return identifier
+    }
+}
+
+extension CryptoRequest.Identifier: CloudKitIdentifier {
+    
+    public static var cloudRecordType: CKRecord.RecordType {
+        return "CryptoRequest"
+    }
+    
+    public init?(cloudRecordID: CKRecord.ID) {
+        guard let rawValue = UUID(uuidString: cloudRecordID.recordName)
+            else { return nil }
+        self.init(rawValue: rawValue)
+    }
+    
+    public var cloudRecordID: CKRecord.ID {
+        return CKRecord.ID(recordName: rawValue.uuidString)
     }
 }
 
@@ -585,17 +619,50 @@ public struct CryptoData: SecureData, Codable {
     
     /// Initializes with a random value.
     public init() {
-        
         self.data = Data(repeating: 0xFF, count: type(of: self).length) // not really random
     }
 }
 
-struct CustomEncodableArray: Equatable {
+public struct CustomEncodableArray: Equatable {
     
-    var elements: [Element]
+    public let id: Identifier
+    
+    public var elements: [Element]
 }
 
-extension CustomEncodableArray {
+public extension CustomEncodableArray {
+    struct Identifier: RawRepresentable, Equatable, Hashable, Codable {
+        public let rawValue: UUID
+        public init(rawValue: UUID = UUID()) {
+            self.rawValue = rawValue
+        }
+    }
+}
+
+extension CustomEncodableArray: CloudKitCodable {
+    public var cloudIdentifier: CloudKitIdentifier {
+        return id
+    }
+}
+
+extension CustomEncodableArray.Identifier: CloudKitIdentifier {
+    
+    public static var cloudRecordType: CKRecord.RecordType {
+        return "CustomEncodableArray"
+    }
+    
+    public init?(cloudRecordID: CKRecord.ID) {
+        guard let rawValue = UUID(uuidString: cloudRecordID.recordName)
+            else { return nil }
+        self.init(rawValue: rawValue)
+    }
+    
+    public var cloudRecordID: CKRecord.ID {
+        return CKRecord.ID(recordName: rawValue.uuidString)
+    }
+}
+
+public extension CustomEncodableArray {
     
     enum Element: Equatable {
         case value(Value)
@@ -603,14 +670,14 @@ extension CustomEncodableArray {
     }
     
     struct Value: Codable, Equatable {
-        let identifier: UUID
-        let name: String
+        public let identifier: UUID
+        public let name: String
     }
     
     struct PendingValue: Codable, Equatable {
-        let identifier: UUID
-        let name: String
-        let expiration: Date
+        public let identifier: UUID
+        public let name: String
+        public let expiration: Date
     }
     
     enum ValueType: UInt8, Codable {
@@ -654,17 +721,57 @@ extension CustomEncodableArray.Element: Codable {
     }
 }
 
-extension CustomEncodableArray: Codable {
+public struct ReferencesTest: Equatable, Codable {
     
-    public init(from decoder: Decoder) throws {
-        self.elements = try .init(from: decoder)
-    }
+    public let id: Identifier
+    public var reference: Identifier?
+    public var references: Set<Identifier>
+    public var nestedValue: Person?
+    public var nestedList: [Person]
+    public var nestedNonCloud: NonCloud?
+    public var nestedNonCloudList: [NonCloud]
+}
+
+public extension ReferencesTest {
     
-    public func encode(to encoder: Encoder) throws {
-        try elements.encode(to: encoder)
+    struct NonCloud: Equatable, Codable {
+        let name: String
+        let value: Data
+        let url: URL
     }
 }
 
+public extension ReferencesTest {
+    struct Identifier: RawRepresentable, Equatable, Hashable, Codable {
+        public let rawValue: UUID
+        public init(rawValue: UUID = UUID()) {
+            self.rawValue = rawValue
+        }
+    }
+}
+
+extension ReferencesTest: CloudKitCodable {
+    public var cloudIdentifier: CloudKitIdentifier {
+        return id
+    }
+}
+
+extension ReferencesTest.Identifier: CloudKitIdentifier {
+    
+    public static var cloudRecordType: CKRecord.RecordType {
+        return "ReferencesTest"
+    }
+    
+    public init?(cloudRecordID: CKRecord.ID) {
+        guard let rawValue = UUID(uuidString: cloudRecordID.recordName)
+            else { return nil }
+        self.init(rawValue: rawValue)
+    }
+    
+    public var cloudRecordID: CKRecord.ID {
+        return CKRecord.ID(recordName: rawValue.uuidString)
+    }
+}
 
 /// Enum that represents a bit mask flag / option.
 ///
