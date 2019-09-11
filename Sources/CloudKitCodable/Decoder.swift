@@ -105,8 +105,13 @@ internal final class CKRecordDecoder: Swift.Decoder {
         log?("Requested unkeyed container for path \"\(codingPath.path)\"")
         
         let container = self.stack.top
-        
-        fatalError()
+        guard case let .value(value) = container else {
+            throw DecodingError.typeMismatch(UnkeyedDecodingContainer.self, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Cannot get unkeyed decoding container, invalid top container \(container)."))
+        }
+        guard let list = value as? [CKRecordValueProtocol] else {
+            throw DecodingError.typeMismatch(UnkeyedDecodingContainer.self, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Cannot get unkeyed value decoding container, invalid top container \(container)."))
+        }
+        return CKRecordUnkeyedDecodingContainer(referencing: self, wrapping: list)
     }
     
     func singleValueContainer() throws -> SingleValueDecodingContainer {
@@ -449,5 +454,155 @@ internal struct CKRecordSingleValueDecodingContainer: SingleValueDecodingContain
             throw DecodingError.valueNotFound(type, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected \(type) value but found null instead."))
         }
         return value
+    }
+}
+
+// MARK: UnkeyedDecodingContainer
+
+internal struct CKRecordUnkeyedDecodingContainer: UnkeyedDecodingContainer {
+    
+    // MARK: Properties
+    
+    /// A reference to the encoder we're reading from.
+    let decoder: CKRecordDecoder
+    
+    /// A reference to the container we're reading from.
+    let container: [CKRecordValueProtocol]
+    
+    /// The path of coding keys taken to get to this point in decoding.
+    let codingPath: [CodingKey]
+    
+    private(set) var currentIndex: Int = 0
+    
+    // MARK: Initialization
+    
+    /// Initializes `self` by referencing the given decoder and container.
+    init(referencing decoder: CKRecordDecoder, wrapping container: [CKRecordValueProtocol]) {
+        
+        self.decoder = decoder
+        self.container = container
+        self.codingPath = decoder.codingPath
+    }
+    
+    // MARK: UnkeyedDecodingContainer
+    
+    var count: Int? {
+        return _count
+    }
+    
+    private var _count: Int {
+        return container.count
+    }
+    
+    var isAtEnd: Bool {
+        return currentIndex >= _count
+    }
+    
+    mutating func decodeNil() throws -> Bool {
+        
+        try assertNotEnd()
+        
+        // never optional, decode
+        return false
+    }
+    
+    mutating func decode(_ type: Bool.Type) throws -> Bool { fatalError("stub") }
+    mutating func decode(_ type: Int.Type) throws -> Int { fatalError("stub") }
+    mutating func decode(_ type: Int8.Type) throws -> Int8 { fatalError("stub") }
+    mutating func decode(_ type: Int16.Type) throws -> Int16 { fatalError("stub") }
+    mutating func decode(_ type: Int32.Type) throws -> Int32 { fatalError("stub") }
+    mutating func decode(_ type: Int64.Type) throws -> Int64 { fatalError("stub") }
+    mutating func decode(_ type: UInt.Type) throws -> UInt { fatalError("stub") }
+    mutating func decode(_ type: UInt8.Type) throws -> UInt8 { fatalError("stub") }
+    mutating func decode(_ type: UInt16.Type) throws -> UInt16 { fatalError("stub") }
+    mutating func decode(_ type: UInt32.Type) throws -> UInt32 { fatalError("stub") }
+    mutating func decode(_ type: UInt64.Type) throws -> UInt64 { fatalError("stub") }
+    mutating func decode(_ type: Float.Type) throws -> Float { fatalError("stub") }
+    mutating func decode(_ type: Double.Type) throws -> Double { fatalError("stub") }
+    mutating func decode(_ type: String.Type) throws -> String { fatalError("stub") }
+    
+    mutating func decode <T : Decodable> (_ type: T.Type) throws -> T {
+        
+        try assertNotEnd()
+        
+        self.decoder.codingPath.append(Index(intValue: self.currentIndex))
+        defer { self.decoder.codingPath.removeLast() }
+        
+        let item = self.container[self.currentIndex]
+        
+        let decoded = try self.decoder.unboxDecodable(item, as: type)
+        
+        self.currentIndex += 1
+        
+        return decoded
+    }
+    
+    mutating func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
+        throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath, debugDescription: "Cannot decode \(type)"))
+    }
+    
+    mutating func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
+        throw DecodingError.typeMismatch([Any].self, DecodingError.Context(codingPath: codingPath, debugDescription: "Cannot decode unkeyed container."))
+    }
+    
+    mutating func superDecoder() throws -> Decoder {
+        
+        // set coding key context
+        self.decoder.codingPath.append(Index(intValue: currentIndex))
+        defer { self.decoder.codingPath.removeLast() }
+        
+        // log
+        self.decoder.log?("Requested super decoder for path \"\(self.decoder.codingPath.path)\"")
+        
+        // check for end of array
+        try assertNotEnd()
+        
+        // get item
+        let recordValue = container[currentIndex]
+        
+        // increment counter
+        self.currentIndex += 1
+        
+        // create new decoder
+        let decoder = CKRecordDecoder(referencing: .item(item),
+                                      at: self.decoder.codingPath,
+                                      userInfo: self.decoder.userInfo,
+                                      log: self.decoder.log,
+                                      context: self.decoder.context)
+        
+        return decoder
+    }
+    
+    // MARK: Private Methods
+    
+    @inline(__always)
+    private func assertNotEnd() throws {
+        guard isAtEnd == false else {
+            throw DecodingError.valueNotFound(Any?.self, DecodingError.Context(codingPath: self.decoder.codingPath + [Index(intValue: self.currentIndex)], debugDescription: "Unkeyed container is at end."))
+        }
+    }
+}
+
+internal extension CKRecordUnkeyedDecodingContainer {
+    
+    struct Index: CodingKey {
+        
+        let index: Int
+        
+        init(intValue: Int) {
+            self.index = intValue
+        }
+        
+        init?(stringValue: String) {
+            return nil
+        }
+        
+        var intValue: Int? {
+            return index
+        }
+        
+        var stringValue: String {
+            return "\(index)"
+        }
     }
 }
