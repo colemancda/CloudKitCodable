@@ -50,8 +50,38 @@ public struct CloudKitDecoder {
 /// CloudKit Decoder context.
 public protocol CloudKitDecoderContext {
     
-    func fetch(record: CKRecord.ID) -> CKRecord
+    func fetch(record: CKRecord.ID) throws -> CKRecord
 }
+
+extension CKDatabase: CloudKitDecoderContext {
+    
+    public func fetch(record: CKRecord.ID) throws -> CKRecord {
+        
+        let semaphore = DispatchSemaphore(value: 0)
+        var result: Result<CKRecord, Error>!
+        fetch(withRecordID: record) { (record, error) in
+            defer { semaphore.signal() }
+            if let error = error {
+                result = .failure(error)
+            } else if let record = record {
+                result = .success(record)
+            } else {
+                assertionFailure()
+            }
+        }
+        semaphore.wait()
+        guard let fetchResult = result
+            else { fatalError() }
+        switch fetchResult {
+        case let .success(record):
+            return record
+        case let .failure(error):
+            throw error
+        }
+    }
+}
+
+// MARK: - Decoder
 
 internal final class CKRecordDecoder: Swift.Decoder {
     
@@ -152,7 +182,7 @@ internal extension CKRecordDecoder {
                 throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Expected reference for \(String(reflecting: decodableType))"))
             }
             // get record for reference
-            let record = context.fetch(record: reference.recordID)
+            let record = try context.fetch(record: reference.recordID)
             // decode nested type
             let decoder = CKRecordDecoder(
                 referencing: .record(record),
