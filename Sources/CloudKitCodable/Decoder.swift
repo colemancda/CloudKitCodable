@@ -161,6 +161,10 @@ internal final class CKRecordDecoder: Swift.Decoder {
 internal extension CKRecordDecoder {
     
     func unbox <T: CKRecordValueProtocol> (_ recordValue: CKRecordValueProtocol, as type: T.Type) throws -> T {
+        var recordValue = recordValue
+        if let number = recordValue as? NSNumber {
+            recordValue = number
+        }
         guard let value = recordValue as? T else {
             throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Could not parse \(type) from \(recordValue)"))
         }
@@ -261,6 +265,9 @@ internal struct CKRecordKeyedDecodingContainer <K: CodingKey> : KeyedDecodingCon
     /// All the keys the Decoder has for this container.
     let allKeys: [Key]
     
+    /// CloudKit Identifier Key
+    let identifierKey: CodingKey? = (Key.self as? CloudKitCodingKey.Type)?.cloudIdentifierKey
+    
     // MARK: Initialization
     
     /// Initializes `self` by referencing the given decoder and container.
@@ -284,62 +291,79 @@ internal struct CKRecordKeyedDecodingContainer <K: CodingKey> : KeyedDecodingCon
     }
     
     func decode(_ type: Bool.Type, forKey key: Key) throws -> Bool {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode(_ type: Int.Type, forKey key: Key) throws -> Int {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode(_ type: Int8.Type, forKey key: Key) throws -> Int8 {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode(_ type: Int16.Type, forKey key: Key) throws -> Int16 {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode(_ type: Int32.Type, forKey key: Key) throws -> Int32 {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode(_ type: Int64.Type, forKey key: Key) throws -> Int64 {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode(_ type: UInt.Type, forKey key: Key) throws -> UInt {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode(_ type: UInt8.Type, forKey key: Key) throws -> UInt8 {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode(_ type: UInt16.Type, forKey key: Key) throws -> UInt16 {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode(_ type: UInt32.Type, forKey key: Key) throws -> UInt32 {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode(_ type: UInt64.Type, forKey key: Key) throws -> UInt64 {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode(_ type: Float.Type, forKey key: Key) throws -> Float {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode(_ type: Double.Type, forKey key: Key) throws -> Double {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode(_ type: String.Type, forKey key: Key) throws -> String {
-        return try decode(type, forKey: key)
+        return try decodeRecordValue(type, forKey: key)
     }
     
     func decode <T: Decodable> (_ type: T.Type, forKey key: Key) throws -> T {
+        
+        // override identifier key
+        if let identifierKey = self.identifierKey?.stringValue {
+            guard key.stringValue != identifierKey else {
+                decoder.codingPath.append(key)
+                defer { decoder.codingPath.removeLast() }
+                decoder.log?("Will read record ID at path \"\(decoder.codingPath.path)\"")
+                guard let identifierType = type as? CloudKitIdentifier.Type else {
+                    throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Should decode identifier for \(identifierKey)"))
+                }
+                guard let identifier = identifierType.init(cloudRecordID: container.recordID) else {
+                    throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Could not initialize identifier \(identifierType) from \(container.recordID)"))
+                }
+                return identifier as! T
+            }
+        }
+        
         return try self.value(for: key, type: type) { try decoder.unboxDecodable($0, as: type) }
     }
     
@@ -362,7 +386,7 @@ internal struct CKRecordKeyedDecodingContainer <K: CodingKey> : KeyedDecodingCon
     // MARK: Private Methods
     
     /// Decode native value type from CloudKit value.
-    private func decode <T: CKRecordValueProtocol> (_ type: T.Type, forKey key: Key) throws -> T {
+    private func decodeRecordValue <T: CKRecordValueProtocol> (_ type: T.Type, forKey key: Key) throws -> T {
         return try self.value(for: key, type: type) { try decoder.unbox($0, as: type) }
     }
     

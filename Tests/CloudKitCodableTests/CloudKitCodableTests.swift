@@ -13,6 +13,8 @@ final class CloudKitCodableTests: XCTestCase {
         
         func test <T: CloudKitCodable & Equatable> (_ value: T) {
             
+            print("Test \(String(reflecting: T.self))")
+            
             var encoder = CloudKitEncoder()
             encoder.log = { print("Encoder:", $0) }
             var operation: CKModifyRecordsOperation!
@@ -214,6 +216,12 @@ extension Person.ID: ExpressibleByStringLiteral {
     }
 }
 
+extension Person.ID: CustomStringConvertible {
+    public var description: String {
+        return rawValue
+    }
+}
+
 extension Person: CloudKitCodable {
     public static var identifierKey: CodingKey? {
         return CodingKeys.id
@@ -262,11 +270,21 @@ public extension Profile {
     }
 }
 
+extension Profile.ID: CustomStringConvertible {
+    public var description: String {
+        return rawValue.description
+    }
+}
+
 extension Profile.ID: ExpressibleByIntegerLiteral {
     public init(integerLiteral value: UInt) {
         self.init(rawValue: value)
     }
 }
+
+//extension Profile.CodingKeys: CloudKitCodingKey {
+//    static var cloudIdentifierKey: CodingKey { return CodingKeys.id }
+//}
 
 extension Profile: CloudKitCodable {
     public static var identifierKey: CodingKey? {

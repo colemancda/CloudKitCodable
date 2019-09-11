@@ -13,18 +13,19 @@ public typealias CloudKitCodable = CloudKitEncodable & CloudKitDecodable
 
 /// CloudKit Encodable
 public protocol CloudKitEncodable: Swift.Encodable {
-    
-    static var identifierKey: CodingKey? { get }
-    
+        
     var cloudIdentifier: CloudKitIdentifier { get }
 }
 
 /// CloudKit Decodable
 public protocol CloudKitDecodable: Swift.Decodable {
-    
-    static var identifierKey: CodingKey? { get }
-    
+        
     var cloudIdentifier: CloudKitIdentifier { get }
+}
+
+public protocol CloudKitCodingKey: CodingKey {
+    
+    static var cloudIdentifierKey: Self { get }
 }
 
 public protocol CloudKitIdentifier {

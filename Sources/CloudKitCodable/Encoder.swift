@@ -238,6 +238,9 @@ internal final class CKRecordKeyedEncodingContainer <K : CodingKey> : KeyedEncod
     /// A reference to the container we're writing to.
     let container: CKRecord
     
+    /// CloudKit Identifier Key
+    let identifierKey: CodingKey? = (Key.self as? CloudKitCodingKey.Type)?.cloudIdentifierKey
+    
     // MARK: - Initialization
     
     init(referencing encoder: CKRecordEncoder,
@@ -311,7 +314,7 @@ internal final class CKRecordKeyedEncodingContainer <K : CodingKey> : KeyedEncod
     }
     
     func encode <T: Encodable> (_ value: T, forKey key: K) throws {
-        guard key.stringValue != Swift.type(of: encoder.value).identifierKey?.stringValue
+        guard key.stringValue != identifierKey?.stringValue
             else { return } // don't encode identifier
         try setValue(try encoder.boxEncodable(value), forKey: key)
     }
