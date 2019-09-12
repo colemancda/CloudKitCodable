@@ -158,31 +158,6 @@ final class CloudKitCodableTests: XCTestCase {
         test(
             CryptoRequest(secret: CryptoData())
         )
-        /*
-        test(
-            CustomEncodableArray(id: .init(), elements: [
-                .value(
-                    CustomEncodableArray.Value(
-                        identifier: UUID(uuidString: "B83DD6F4-A429-41B3-945A-3E0EE5915CA1")!,
-                        name: "Value 1"
-                    )
-                ),
-                .value(
-                    CustomEncodableArray.Value(
-                        identifier: UUID(uuidString: "B83DD6F4-A429-41B3-945A-3E0EE5915CA2")!,
-                        name: "Value 2"
-                    )
-                ),
-                .pendingValue(
-                    CustomEncodableArray.PendingValue(
-                        identifier: UUID(uuidString: "B83DD6F4-A429-41B3-945A-3E0EE5915CA3")!,
-                        name: "Pending Value 1",
-                        expiration: Date.distantFuture
-                    )
-                )
-                ]
-            )
-        )*/
         
         test(
             ReferencesTest(
@@ -724,104 +699,6 @@ public struct CryptoData: SecureData, Codable {
     /// Initializes with a random value.
     public init() {
         self.data = Data(repeating: 0xFF, count: type(of: self).length) // not really random
-    }
-}
-
-public struct CustomEncodableArray: Equatable {
-    
-    public let id: Identifier
-    
-    public var elements: [Element]
-}
-
-public extension CustomEncodableArray {
-    struct Identifier: RawRepresentable, Equatable, Hashable, Codable {
-        public let rawValue: UUID
-        public init(rawValue: UUID = UUID()) {
-            self.rawValue = rawValue
-        }
-    }
-}
-
-extension CustomEncodableArray: CloudKitCodable {
-    public var cloudIdentifier: CloudKitIdentifier {
-        return id
-    }
-}
-
-extension CustomEncodableArray.Identifier: CloudKitIdentifier {
-    
-    public static var cloudRecordType: CKRecord.RecordType {
-        return "CustomEncodableArray"
-    }
-    
-    public init?(cloudRecordID: CKRecord.ID) {
-        guard let rawValue = UUID(uuidString: cloudRecordID.recordName)
-            else { return nil }
-        self.init(rawValue: rawValue)
-    }
-    
-    public var cloudRecordID: CKRecord.ID {
-        return CKRecord.ID(recordName: rawValue.uuidString)
-    }
-}
-
-public extension CustomEncodableArray {
-    
-    enum Element: Equatable {
-        case value(Value)
-        case pendingValue(PendingValue)
-    }
-    
-    struct Value: Codable, Equatable {
-        public let identifier: UUID
-        public let name: String
-    }
-    
-    struct PendingValue: Codable, Equatable {
-        public let identifier: UUID
-        public let name: String
-        public let expiration: Date
-    }
-    
-    enum ValueType: UInt8, Codable {
-        case value
-        case pendingValue
-    }
-}
-
-extension CustomEncodableArray.Element: Codable {
-    
-    private enum CodingKeys: String, CodingKey, CaseIterable {
-        case type
-        case value
-    }
-    
-    public init(from decoder: Decoder) throws {
-        
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let type = try container.decode(CustomEncodableArray.ValueType.self, forKey: .type)
-        switch type {
-        case .value:
-            let value = try container.decode(CustomEncodableArray.Value.self, forKey: .value)
-            self = .value(value)
-        case .pendingValue:
-            let pendingValue = try container.decode(CustomEncodableArray.PendingValue.self, forKey: .value)
-            self = .pendingValue(pendingValue)
-        }
-    }
-    
-    public func encode(to encoder: Encoder) throws {
-        
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch self {
-        case let .value(value):
-            try container.encode(CustomEncodableArray.ValueType.value, forKey: .type)
-            try container.encode(value, forKey: .value)
-        case let .pendingValue(pendingValue):
-            try container.encode(CustomEncodableArray.ValueType.pendingValue, forKey: .type)
-            try container.encode(pendingValue, forKey: .value)
-        }
     }
 }
 
