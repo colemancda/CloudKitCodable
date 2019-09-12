@@ -48,16 +48,7 @@ public struct CloudKitEncoder {
 public extension CloudKitEncoder {
     
     /// CloudKit Encoder Options
-    struct Options {
-        
-        /// Which coding key to use as the CloudKit record name.
-        public var identifierKey: IdentifierKeyStrategy = { (_, key) in key.stringValue == "id" }
-    }
-}
-
-public extension CloudKitEncoder.Options {
-    
-    typealias IdentifierKeyStrategy = (CloudKitEncodable, CodingKey) -> (Bool)
+    typealias Options = CloudKitCodingOptions
 }
 
 // MARK: - Supporting Types
@@ -387,7 +378,7 @@ internal final class CKRecordKeyedEncodingContainer <K : CodingKey> : KeyedEncod
     
     func encode <T: Encodable> (_ value: T, forKey key: K) throws {
          // don't encode identifier
-        guard encoder.options.identifierKey(encoder.value, key) == false else {
+        guard encoder.options.identifierKey(key) == false else {
             self.encoder.codingPath.append(key)
             defer { self.encoder.codingPath.removeLast() }
             let recordID = encoder.value.cloudIdentifier.cloudRecordID

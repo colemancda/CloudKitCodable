@@ -54,16 +54,7 @@ public struct CloudKitDecoder {
 public extension CloudKitDecoder {
     
     /// CloudKit Decoder Options
-    struct Options {
-        
-        /// Which coding key to use as the CloudKit record name.
-        public var identifierKey: IdentifierKeyStrategy = { (key) in key.stringValue == "id" }
-    }
-}
-
-public extension CloudKitDecoder.Options {
-    
-    typealias IdentifierKeyStrategy = (CodingKey) -> (Bool)
+    typealias Options = CloudKitCodingOptions
 }
 
 /// CloudKit Decoder context.
@@ -252,7 +243,7 @@ internal extension CKRecordDecoder {
                 options: options
             )
             return try T.init(from: decoder)
-        } else if let cloudKitValueType = type as? CKRecordValueProtocol.Type {
+        } else if let _ = type as? CKRecordValueProtocol.Type {
             // native CloudKit value type
             //return unbox(value, as: cloudKitValueType) as! T
             var recordValue = value
