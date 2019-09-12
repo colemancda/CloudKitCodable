@@ -587,6 +587,7 @@ internal extension CKModifyRecordsOperation {
     
     func save(_ record: CKRecord) {
         var recordsToSave = self.recordsToSave ?? []
+        recordsToSave.removeAll(where: { $0 === record })
         recordsToSave.append(record)
         self.recordsToSave = recordsToSave
     }

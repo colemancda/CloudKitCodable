@@ -23,6 +23,8 @@ final class CloudKitCodableTests: XCTestCase {
             do {
                 operation = try encoder.encode(value)
                 XCTAssertEqual(operation.recordsToSave?.first?.recordID, value.cloudIdentifier.cloudRecordID)
+                let recordIDs = operation.recordsToSave?.map { $0.recordID.recordName } ?? []
+                XCTAssertEqual(recordIDs.count, Set(recordIDs).count, "No duplicate records")
             } catch {
                 dump(error)
                 XCTFail("Could not encode \(value)")
