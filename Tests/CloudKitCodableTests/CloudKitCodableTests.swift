@@ -8,6 +8,7 @@ final class CloudKitCodableTests: XCTestCase {
     
     static let allTests = [
         ("testCodable", testCodable),
+        ("testInvalid", testInvalid)
     ]
     
     func testCodable() {
@@ -213,33 +214,37 @@ final class CloudKitCodableTests: XCTestCase {
     
     func testInvalid() {
         
+        var encoder = CloudKitEncoder()
+        encoder.log = { print("Encoder:", $0) }
+        
         do {
             let value = ReferencesTest(
                 id: .init(),
                 reference: nil,
                 references: [],
-                nestedValue: Person(
-                    id: "001",
-                    gender: .male,
-                    name: "Coleman"
-                ),
-                nestedList: [
-                    Person(
-                        id: "002",
-                        gender: .female,
-                        name: "Gina"
-                    ),
-                    Person(
-                        id: "003",
-                        gender: .male,
-                        name: "Jorge"
-                    )
-                ],
+                nestedValue: nil,
+                nestedList: [],
                 nestedNonCloud: .init(
                     name: "Non Cloud Nested",
                     value: Data([0x01, 0x02]),
                     url: URL(string: "http://google.com")!
                 ),
+                nestedNonCloudList: []
+            )
+            let _ = try encoder.encode(value)
+            XCTFail("Should throw error")
+        } catch {
+            dump(error)
+        }
+        
+        do {
+            let value = ReferencesTest(
+                id: .init(),
+                reference: nil,
+                references: [],
+                nestedValue: nil,
+                nestedList: [],
+                nestedNonCloud: nil,
                 nestedNonCloudList: [
                     .init(
                         name: "Non Cloud Nested 1",
@@ -248,9 +253,6 @@ final class CloudKitCodableTests: XCTestCase {
                     ),
                 ]
             )
-            
-            var encoder = CloudKitEncoder()
-            encoder.log = { print("Encoder:", $0) }
             let _ = try encoder.encode(value)
             XCTFail("Should throw error")
         } catch {

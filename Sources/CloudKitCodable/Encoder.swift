@@ -109,6 +109,12 @@ internal final class CKRecordEncoder: Swift.Encoder {
         
         log?("Requested container keyed by \(type.sanitizedName) for path \"\(codingPath.path)\"")
         
+        /// cannot encode
+        guard stack.containers.isEmpty else {
+            let keyedContainer = CKRecordInvalidKeyedEncodingContainer<Key>(codingPath: codingPath)
+            return KeyedEncodingContainer(keyedContainer)
+        }
+        
         let record = CKRecord(
             recordType: Swift.type(of: value.cloudIdentifier).cloudRecordType,
             recordID: value.cloudIdentifier.cloudRecordID
@@ -253,6 +259,45 @@ internal extension CKRecordEncoder {
 
 // MARK: - KeyedEncodingContainerProtocol
 
+internal struct CKRecordInvalidKeyedEncodingContainer <K : CodingKey> : KeyedEncodingContainerProtocol {
+    
+    let codingPath: [CodingKey]
+    
+    typealias Key = K
+    
+    func encodeNil(forKey key: K) throws { try error() }
+    func encode(_ value: Bool, forKey key: K) throws { try error() }
+    func encode(_ value: Int, forKey key: K) throws { try error() }
+    func encode(_ value: Int8, forKey key: K) throws { try error() }
+    func encode(_ value: Int16, forKey key: K) throws { try error() }
+    func encode(_ value: Int32, forKey key: K) throws { try error() }
+    func encode(_ value: Int64, forKey key: K) throws { try error() }
+    func encode(_ value: UInt, forKey key: K) throws { try error() }
+    func encode(_ value: UInt8, forKey key: K) throws { try error() }
+    func encode(_ value: UInt16, forKey key: K) throws { try error() }
+    func encode(_ value: UInt32, forKey key: K) throws { try error() }
+    func encode(_ value: UInt64, forKey key: K) throws { try error() }
+    func encode(_ value: Float, forKey key: K) throws { try error() }
+    func encode(_ value: Double, forKey key: K) throws { try error() }
+    func encode(_ value: String, forKey key: K) throws { try error() }
+    func encode <T: Encodable> (_ value: T, forKey key: K) throws { try error() }
+    func nestedContainer<NestedKey>(keyedBy keyType: NestedKey.Type, forKey key: K) -> KeyedEncodingContainer<NestedKey> where NestedKey : CodingKey {
+        fatalError()
+    }
+    func nestedUnkeyedContainer(forKey key: K) -> UnkeyedEncodingContainer {
+        fatalError()
+    }
+    func superEncoder() -> Encoder {
+        fatalError()
+    }
+    func superEncoder(forKey key: K) -> Encoder {
+        fatalError()
+    }
+    private func error() throws {
+        throw EncodingError.invalidValue(CloudKitEncodable.self, EncodingError.Context(codingPath: codingPath, debugDescription: "Nested value should conform to \(CloudKitEncodable.self)"))
+    }
+}
+
 internal final class CKRecordKeyedEncodingContainer <K : CodingKey> : KeyedEncodingContainerProtocol {
     
     typealias Key = K
@@ -375,7 +420,7 @@ internal final class CKRecordKeyedEncodingContainer <K : CodingKey> : KeyedEncod
     private func setValue(_ value: @autoclosure () throws -> (CKRecordValueProtocol?), forKey key: K) rethrows {
         self.encoder.codingPath.append(key)
         defer { self.encoder.codingPath.removeLast() }
-        encoder.log?("Will encode value for key \(key.stringValue) at path \"\(encoder.codingPath.path)\"")
+        encoder.log?("Will encode value for key \"\(key.stringValue)\" at path \"\(encoder.codingPath.path)\"")
         let recordValue = try value()
         if #available(macOS 10.11, iOS 9.0, watchOS 3.0, *) {
             self.container[key.stringValue] = recordValue
