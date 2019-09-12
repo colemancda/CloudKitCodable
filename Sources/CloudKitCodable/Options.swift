@@ -15,7 +15,7 @@ public struct CloudKitCodingOptions {
     public var identifierKey: IdentifierKeyStrategy = { $0.stringValue == "id" }
     
     /// Which URLs to use as CloudKit assets.
-    public var assets: AssetStrategy = { return $0.isFileURL }
+    public var assets: AssetStrategy = { $0.isFileURL ? CKAsset(fileURL: $0) : nil }
 }
 
 public extension CloudKitCodingOptions {
@@ -24,5 +24,5 @@ public extension CloudKitCodingOptions {
     typealias IdentifierKeyStrategy = (CodingKey) -> (Bool)
     
     /// Which URLs to use as CloudKit assets.
-    typealias AssetStrategy = (URL) -> Bool
+    typealias AssetStrategy = (URL) -> CKAsset?
 }

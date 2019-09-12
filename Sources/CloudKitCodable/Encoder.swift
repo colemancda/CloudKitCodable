@@ -142,7 +142,8 @@ internal extension CKRecordEncoder {
     func boxEncodable <T: Encodable> (_ value: T) throws -> CKRecordValueProtocol? {
         
         if let url = value as? URL {
-            return url.absoluteString
+            // attempt to convert to CKAsset
+            return options.assets(url) ?? url.absoluteString
         } else if let uuid = value as? UUID {
             return uuid.uuidString
         } else if let locationValue = value as? CloudKitLocation {

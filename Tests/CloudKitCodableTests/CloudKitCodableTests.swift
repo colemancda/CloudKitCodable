@@ -87,7 +87,8 @@ final class CloudKitCodableTests: XCTestCase {
              data: Data([0x01]),
              url: URL(string: "https://apple.com")!,
              uuid: UUID(),
-             location: .init(latitude: 1.123, longitude: -1.123)
+             location: .init(latitude: 1.123, longitude: -1.123),
+             asset: URL(fileURLWithPath: "/tmp/data.json")
             )
         )
         test(Profile(
@@ -387,6 +388,7 @@ public struct AttributesTest: Codable, Equatable, Hashable {
     public var url: URL
     public var uuid: UUID
     public var location: Location
+    public var asset: URL
 }
 
 public struct Location: Codable, Equatable, Hashable {

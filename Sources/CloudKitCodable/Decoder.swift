@@ -197,13 +197,17 @@ internal extension CKRecordDecoder {
     func unboxDecodable <T: Decodable> (_ value: CKRecordValueProtocol, as type: T.Type) throws -> T {
         
         if type is URL.Type {
-            guard let urlString = value as? String else {
+            switch value {
+            case let urlString as String:
+                guard let url = URL(string: urlString) else {
+                    throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Invalid URL string \(urlString)"))
+                }
+                return url as! T // should be same type
+            case let assert as CKAsset:
+                return assert.fileURL as! T
+            default:
                 throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Expected URL string, got \(Swift.type(of: value)) instead"))
             }
-            guard let url = URL(string: urlString) else {
-                throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Invalid URL string \(urlString)"))
-            }
-            return url as! T // should be same type
         } else if type is UUID.Type {
             guard let uuidString = value as? String else {
                 throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Expected UUID string, got \(Swift.type(of: value)) instead"))
