@@ -148,6 +148,9 @@ internal extension CKRecordEncoder {
             return url.absoluteString
         } else if let uuid = value as? UUID {
             return uuid.uuidString
+        } else if let locationValue = value as? CloudKitLocation {
+            // encode CLLocation
+            return locationValue.location
         } else if let identifier = value as? CloudKitIdentifier {
             // store nested reference
             return boxIdentifier(identifier)

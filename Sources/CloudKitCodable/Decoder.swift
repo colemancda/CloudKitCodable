@@ -221,6 +221,11 @@ internal extension CKRecordDecoder {
                 throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Invalid UUID string \(uuidString)"))
             }
             return uuid as! T
+        } else if let locationType = type as? CloudKitLocation.Type {
+            guard let location = value as? CLLocation else {
+                throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: self.codingPath, debugDescription: "Expected CLLocation, got \(Swift.type(of: value)) instead"))
+            }
+            return locationType.init(location: location) as! T
         } else if let identifierType = type as? CloudKitIdentifier.Type {
             // unbox reference as identifier
             guard let reference = value as? CKRecord.Reference else {
