@@ -16,8 +16,8 @@ final class CloudKitCodableTests: XCTestCase {
         func test <T: CloudKitCodable & Equatable> (_ value: T) {
             
             print("Test \(String(reflecting: T.self))")
-            
-            var encoder = CloudKitEncoder()
+                        
+            let encoder = CloudKitEncoder(context: CloudKitTestContext(records: []))
             encoder.log = { print("Encoder:", $0) }
             var operation: CKModifyRecordsOperation!
             do {
@@ -36,8 +36,7 @@ final class CloudKitCodableTests: XCTestCase {
                 return
             }
             
-            let context = CloudKitTestDecoderContext(records: operation.recordsToSave ?? [])
-            var decoder = CloudKitDecoder(context: context)
+            let decoder = CloudKitDecoder(context: CloudKitTestContext(records: operation.recordsToSave ?? []))
             decoder.log = { print("Decoder:", $0) }
             do {
                 let decodedValue = try decoder.decode(T.self, from: record)
@@ -192,7 +191,7 @@ final class CloudKitCodableTests: XCTestCase {
     
     func testInvalid() {
         
-        var encoder = CloudKitEncoder()
+        let encoder = CloudKitEncoder(context: CloudKitTestContext(records: []))
         encoder.log = { print("Encoder:", $0) }
         
         do {
@@ -241,19 +240,16 @@ final class CloudKitCodableTests: XCTestCase {
 
 // MARK: - Supporting Types
 
-internal struct CloudKitTestDecoderContext: CloudKitDecoderContext {
+internal struct CloudKitTestContext: CloudKitContext {
     
     let records: [CKRecord]
     
-    func fetch(record identifier: CKRecord.ID) throws -> CKRecord {
-        guard let record = records.first(where: { $0.recordID == identifier }) else {
-            throw CKError(.unknownItem)
-        }
-        return record
+    func fetch(record identifier: CKRecord.ID) throws -> CKRecord? {
+        return records.first(where: { $0.recordID == identifier })
     }
 }
 
-extension CloudKitTestDecoderContext: ExpressibleByArrayLiteral {
+extension CloudKitTestContext: ExpressibleByArrayLiteral {
     init(arrayLiteral elements: CKRecord...) {
         self.init(records: elements)
     }

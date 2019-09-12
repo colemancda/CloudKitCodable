@@ -9,12 +9,12 @@ import Foundation
 import CloudKit
 
 /// CloudKit Record Decoder
-public struct CloudKitDecoder {
+public final class CloudKitDecoder {
     
     // MARK: - Properties
     
     /// CloudKit Decoder context.
-    public let context: CloudKitDecoderContext
+    public let context: CloudKitContext
     
     /// Any contextual information set by the user for encoding.
     public var userInfo = [CodingUserInfoKey : Any]()
@@ -27,7 +27,7 @@ public struct CloudKitDecoder {
     
     // MARK: - Initialization
     
-    public init(context: CloudKitDecoderContext) {
+    public init(context: CloudKitContext) {
         self.context = context
     }
     
@@ -57,26 +57,19 @@ public extension CloudKitDecoder {
     typealias Options = CloudKitCodingOptions
 }
 
-/// CloudKit Decoder context.
-public protocol CloudKitDecoderContext {
+extension CKDatabase: CloudKitContext {
     
-    func fetch(record: CKRecord.ID) throws -> CKRecord
-}
-
-extension CKDatabase: CloudKitDecoderContext {
-    
-    public func fetch(record: CKRecord.ID) throws -> CKRecord {
+    public func fetch(record: CKRecord.ID) throws -> CKRecord? {
         
+        // TODO: Use CKFetchRecordsOperation
         let semaphore = DispatchSemaphore(value: 0)
-        var result: Result<CKRecord, Error>!
+        var result: Result<CKRecord?, Error>!
         fetch(withRecordID: record) { (record, error) in
             defer { semaphore.signal() }
             if let error = error {
                 result = .failure(error)
-            } else if let record = record {
-                result = .success(record)
             } else {
-                assertionFailure()
+                result = .success(record)
             }
         }
         semaphore.wait()
@@ -98,7 +91,7 @@ internal final class CKRecordDecoder: Swift.Decoder {
     // MARK: - Properties
     
     /// CloudKit Decoder context.
-    public let context: CloudKitDecoderContext
+    public let context: CloudKitContext
     
     /// The path of coding keys taken to get to this point in decoding.
     fileprivate(set) var codingPath: [CodingKey]
@@ -119,7 +112,7 @@ internal final class CKRecordDecoder: Swift.Decoder {
                      at codingPath: [CodingKey] = [],
                      userInfo: [CodingUserInfoKey : Any],
                      log: ((String) -> ())?,
-                     context: CloudKitDecoderContext,
+                     context: CloudKitContext,
                      options: CloudKitDecoder.Options) {
         
         self.stack = Stack(container)
@@ -146,7 +139,9 @@ internal final class CKRecordDecoder: Swift.Decoder {
                 throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: self.codingPath, debugDescription: "Cannot get keyed decoding container, invalid top container \(container)."))
             }
             // get record for reference
-            let record = try context.fetch(record: reference.recordID)
+            guard let record = try context.fetch(record: reference.recordID) else {
+                throw CKError(.unknownItem)
+            }
             let keyedContainer = CKRecordKeyedDecodingContainer<Key>(referencing: self, wrapping: record)
             return KeyedDecodingContainer(keyedContainer)
         }
@@ -236,7 +231,9 @@ internal extension CKRecordDecoder {
                 throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath, debugDescription: "Expected reference for \(String(reflecting: decodableType))"))
             }
             // get record for reference
-            let record = try context.fetch(record: reference.recordID)
+            guard let record = try context.fetch(record: reference.recordID) else {
+                throw CKError(.unknownItem)
+            }
             // decode nested type
             let decoder = CKRecordDecoder(
                 referencing: .record(record),
