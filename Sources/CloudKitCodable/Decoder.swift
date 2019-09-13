@@ -57,33 +57,6 @@ public extension CloudKitDecoder {
     typealias Options = CloudKitCodingOptions
 }
 
-extension CKDatabase: CloudKitContext {
-    
-    public func fetch(record: CKRecord.ID) throws -> CKRecord? {
-        
-        // TODO: Use CKFetchRecordsOperation
-        let semaphore = DispatchSemaphore(value: 0)
-        var result: Result<CKRecord?, Error>!
-        fetch(withRecordID: record) { (record, error) in
-            defer { semaphore.signal() }
-            if let error = error {
-                result = .failure(error)
-            } else {
-                result = .success(record)
-            }
-        }
-        semaphore.wait()
-        guard let fetchResult = result
-            else { fatalError() }
-        switch fetchResult {
-        case let .success(record):
-            return record
-        case let .failure(error):
-            throw error
-        }
-    }
-}
-
 // MARK: - Decoder
 
 internal final class CKRecordDecoder: Swift.Decoder {
