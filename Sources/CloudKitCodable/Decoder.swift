@@ -418,7 +418,10 @@ internal struct CKRecordKeyedDecodingContainer <K: CodingKey> : KeyedDecodingCon
     private func value <T> (for key: Key, type: T.Type, decode: (CKRecordValueProtocol) throws -> T) throws -> T {
         
         guard let value = self.value(for: key) else {
-            throw DecodingError.valueNotFound(type, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected \(type) value but found null instead."))
+            if let _ = type as? CloudKitListDecodable.Type {
+                return try decode(NSArray())
+            }
+            throw DecodingError.valueNotFound(type, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected \(String(reflecting: type)) value but found null instead."))
         }
         return try decode(value)
     }
@@ -530,9 +533,9 @@ internal struct CKRecordSingleValueDecodingContainer: SingleValueDecodingContain
     
     // MARK: - Private Methods
     
-    private func value<T>(_ type: T.Type) throws -> CKRecordValueProtocol {
+    private func value <T> (_ type: T.Type) throws -> CKRecordValueProtocol {
         guard let value = container else {
-            throw DecodingError.valueNotFound(type, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected \(type) value but found null instead."))
+            throw DecodingError.valueNotFound(type, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected \(String(reflecting: type)) value but found null instead."))
         }
         return value
     }
@@ -688,3 +691,7 @@ internal extension CKRecordUnkeyedDecodingContainer {
         }
     }
 }
+
+private protocol CloudKitListDecodable { }
+extension Array: CloudKitListDecodable where Element: Decodable { }
+extension Set: CloudKitListDecodable where Element: Decodable { }

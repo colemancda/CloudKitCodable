@@ -8,7 +8,8 @@ final class CloudKitCodableTests: XCTestCase {
     
     static let allTests = [
         ("testCodable", testCodable),
-        ("testInvalid", testInvalid)
+        ("testInvalid", testInvalid),
+        ("testDecodeEmptyList", testDecodeEmptyList)
     ]
     
     func testCodable() {
@@ -234,6 +235,34 @@ final class CloudKitCodableTests: XCTestCase {
             XCTFail("Should throw error")
         } catch {
             dump(error)
+        }
+    }
+    
+    func testDecodeEmptyList() {
+        
+        let value = ReferencesTest(
+            id: .init(),
+            reference: nil,
+            references: [],
+            nestedValue: nil,
+            nestedList: [],
+            nestedNonCloud: nil,
+            nestedNonCloudList: []
+        )
+        
+        let record = CKRecord(
+            recordType: type(of: value.id).cloudRecordType,
+            recordID: value.id.cloudRecordID
+        )
+        
+        let context = CloudKitTestContext(records: [record])
+        let decoder = CloudKitDecoder(context: context)
+        do {
+            let decodedValue = try decoder.decode(ReferencesTest.self, from: record)
+            XCTAssertEqual(value, decodedValue)
+        } catch {
+            dump(error)
+            XCTFail("\(error)")
         }
     }
 }
