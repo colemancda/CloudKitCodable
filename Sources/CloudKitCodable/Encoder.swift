@@ -186,6 +186,18 @@ internal extension CKRecordEncoder {
             guard case let .record(record) = encoder.stack.root else {
                 throw EncodingError.invalidValue(value, EncodingError.Context(codingPath: codingPath, debugDescription: "\(String(reflecting: Swift.type(of: encodable))) should encode to record"))
             }
+            // set nested record as child
+            if #available(macOS 10.12, iOS 10, tvOS 10, watchOS 3.0, *) {
+                switch options.parentRecord {
+                case .none:
+                    break
+                case .nested:
+                    record.setParent(self.value.cloudIdentifier.cloudRecordID)
+                case let .custom(custom):
+                    let parent = custom(self.codingPath, encodable.cloudIdentifier)
+                    record.setParent(parent?.cloudRecordID)
+                }
+            }
             return boxRecord(record)
         } else if let recordValue = value as? CKRecordValueProtocol {
             // return CloudKit native attribute value
