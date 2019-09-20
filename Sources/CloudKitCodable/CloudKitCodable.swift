@@ -15,6 +15,13 @@ public typealias CloudKitCodable = CloudKitEncodable & CloudKitDecodable
 public protocol CloudKitEncodable: Swift.Encodable {
             
     var cloudIdentifier: CloudKitIdentifier { get }
+    
+    var parentRecord: CloudKitIdentifier? { get }
+}
+
+public extension CloudKitEncodable {
+    
+    var parentRecord: CloudKitIdentifier? { return nil }
 }
 
 /// CloudKit Decodable

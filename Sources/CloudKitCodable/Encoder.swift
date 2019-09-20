@@ -125,7 +125,13 @@ internal final class CKRecordEncoder: Swift.Encoder {
                 recordType: Swift.type(of: value.cloudIdentifier).cloudRecordType,
                 recordID: recordID
             )
+            // set parent record
+            if #available(macOS 10.12, iOS 10, tvOS 10, watchOS 3, *) {
+                record.setParent(value.parentRecord?.cloudRecordID)
+            }
+            // add to CloudKit operation
             operation.save(record)
+            // push container
             self.stack.push(.record(record))
             let keyedContainer = CKRecordKeyedEncodingContainer<Key>(referencing: self, wrapping: record)
             return KeyedEncodingContainer(keyedContainer)
@@ -185,18 +191,6 @@ internal extension CKRecordEncoder {
             try encodable.encode(to: encoder)
             guard case let .record(record) = encoder.stack.root else {
                 throw EncodingError.invalidValue(value, EncodingError.Context(codingPath: codingPath, debugDescription: "\(String(reflecting: Swift.type(of: encodable))) should encode to record"))
-            }
-            // set nested record as child
-            if #available(macOS 10.12, iOS 10, tvOS 10, watchOS 3.0, *) {
-                switch options.parentRecord {
-                case .none:
-                    break
-                case .nested:
-                    record.setParent(self.value.cloudIdentifier.cloudRecordID)
-                case let .custom(custom):
-                    let parent = custom(self.codingPath, encodable.cloudIdentifier)
-                    record.setParent(parent?.cloudRecordID)
-                }
             }
             return boxRecord(record)
         } else if let recordValue = value as? CKRecordValueProtocol {
